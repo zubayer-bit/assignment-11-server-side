@@ -76,6 +76,10 @@ async function run() {
     const userCollection = db.collection("users");
     const assetCollection = db.collection("assets");
     const requestsCollection = db.collection("requests");
+    const assignedAssetsCollection = db.collection("assignedAssets");
+    const employeeAffiliationsCollection = db.collection(
+      "employeeAffiliations"
+    );
 
     //-------(user nije admin kina,seta check korar middle wire)---(start)
     //ai middle wire je khane use korbo,sekhane ata "verifyjwtToken" ar pore use korbo,
@@ -184,70 +188,189 @@ async function run() {
     });
     //assectCollection aa hr ar data post----------(end)
 
-    
-
-
     //requests asset page aa "request button" ar status ki hobe,tar jonno"resuestsCollection" theke data get korbo-----tikh korte hbe---(start)
-    app.get("/requests-status", verifyToken, verifyEmployee, async (req, res) => {
-      const {email} = req.query;
+    app.get(
+      "/requests-status",
+      verifyToken,
+      verifyEmployee,
+      async (req, res) => {
+        const { email } = req.query;
 
-    
-      const query = { requesterEmail: email };
-      const requests = await requestsCollection.find(query).toArray();
-      res.send(requests);
-    });
+        const query = { requesterEmail: email };
+        const requests = await requestsCollection.find(query).toArray();
+        res.send(requests);
+      }
+    );
     //requests asset page aa "request button" ar status ki hobe,tar jonno "resuestsCollection" theke data get korbo--------(end)
 
+    // HR only: get own asset requests-----(start)
+    app.get("/hr/asset-requests", verifyToken, verifyHr, async (req, res) => {
+      const hrEmail = req.user.email; // JWT theke email neya hocche
+
+      const query = { hrEmail };
+      const requests = await requestsCollection
+        .find(query)
+        .sort({ requestDate: -1 })
+        .toArray();
+
+      res.send(requests);
+    });
+    // HR only: get own asset requests-----(end)
+
+    //hr jokhon request approved korbe tar code----(start)
+    app.patch(
+      "/asset-requests/approve/:id",
+      verifyToken,
+      verifyHr,
+      async (req, res) => {
+        const requestId = req.params.id;
+        //jwt token theke email:
+        const hrrEmail = req.user.email;
+
+        try {
+          //1:-----------
+          //akhn Update userCollection currentEmployees for HR
+          //but age check korbo je currentEmployees packageLimit er beshi na hoi jai:
+          const hr = await userCollection.findOne({ email: hrrEmail });
+          if (!hr) {
+            return res.status(404).send({ message: "HR not found" });
+          }
+          if (hr.currentEmployees >= hr.packageLimit) {
+            return res.status(403).send({
+              message: "Employee limit reached. Please upgrade your package.",
+            });
+          }
+          if (hr.currentEmployees < hr.packageLimit) {
+            const updateUserPakageRelatedInfo = {
+              $set: {
+                currentEmployees: hr.currentEmployees + 1,
+                updatedAt: new Date(),
+              },
+            };
+            const updateResult = await userCollection.updateOne(
+              { email: hrrEmail },
+              updateUserPakageRelatedInfo
+            );
+          }
+
+          //2:----------requestCollection ar data update korbo:
+          const request = await requestsCollection.findOne({
+            _id: new ObjectId(requestId),
+          });
+
+          if (!request)
+            return res.status(404).send({ message: "Request not found" });
+
+          if (request.requestStatus !== "pending") {
+            return res
+              .status(400)
+              .send({ message: "Request already processed" });
+          }
+
+          if (request.hrEmail !== hrrEmail) {
+            return res.status(403).send({ message: "Forbidden access" });
+          }
+
+          //akhn requestCollection ar data udate korbo,je data gulu update korbo ta destructuring kore nibo:
+          // const {assetId, assetName, assetType,requesterName, requesterEmail, hrEmail, companyName, note, approvalDate, requestStatus, requestDate, processedBy } = request;
+
+          //akhn update korbo requestCollection ar data:
+          const updateDoc = {
+            $set: {
+              requestStatus: "approved",
+              approvalDate: new Date(),
+              processedBy: hrrEmail,
+            },
+          };
+          //requestCollection aa "companyLogo" nai,tai "userCollection" theke nite hobe:
+          const hrUser = await userCollection.findOne({ email: hrrEmail });
+          if (!hrUser) {
+            return res.status(404).send({ message: "HR user not found" });
+          }
+          //company logo ta nibo:
+          const companyLogo = hrUser.companyLogo || null;
+
+          // amra jeno right data update korte pari tar jonno "id" dea dite hobe
+          const result = await requestsCollection.updateOne(
+            { _id: new ObjectId(requestId) },
+            updateDoc
+          );
+
+          //3;-------------
+          //akhn employeeAffiliationsCollection aa data inserrt korbo:
+          //check korbo employee affiliated agei ace kina:
+          const affiliation = await employeeAffiliationsCollection.findOne({
+            employeeEmail: request.requesterEmail,
+            hrEmail: request.hrEmail,
+          });
+          if (!affiliation) {
+            const affiliationData = {
+              employeeName: request.requesterName,
+              employeeEmail: request.requesterEmail,
+              hrEmail: request.hrEmail,
+              companyName: request.companyName,
+              companyLogo: companyLogo,
+              affiliationDate: new Date(),
+              status: "active",
+            };
+
+            await employeeAffiliationsCollection.insertOne(affiliationData);
+          }
 
 
-// HR only: get own asset requests-----
-app.get(
-  "/hr/asset-requests",
-  verifyToken,
-  verifyHr,
-  async (req, res) => {
-    const hrEmail = req.user.email; // JWT theke email neya hocche
+          //4:------assignedAssetsCollection aa data insert korbo:
+          //but tar age assets collection theke  id(request ar moddhe ace) dea  asset image ta nite hobe
+          const asset = await assetCollection.findOne({
+            _id: new ObjectId(request.assetId),
+          });
+          if (!asset) {
+            return res.status(404).send({ message: "Asset not found" });
+          }
+          const assignedAssetData = {
+            assetId: request.assetId,
+            assetName: request.assetName,
+            assetImage: asset.image,
+          }
 
-    const query = { hrEmail };
-    const requests = await requestsCollection
-      .find(query)
-      .sort({ requestDate: -1 })
-      .toArray();
-
-    res.send(requests);
-  }
-);
-
-
-
+          res.send({ result });
+        } catch (err) {
+          console.error(err);
+          res.status(500).send({ success: false, message: "Server error" });
+        }
+      }
+    );
+    //hr jokhon request approved korbe tar code----(end)
 
     //requestsCollection aa employee ar data post----------(start)
-    app.post("/asset-requests", verifyToken, verifyEmployee, async (req, res) => {
-      const request = req.body;
-      //  JWT token ar email
-      const tokenEmail = req.user.email;
-      //  Client side ar email
-      const clientEmail = request.requesterEmail;
-      // Match check
-      if (tokenEmail !== clientEmail) {
-        return res.status(403).send({ message: "Forbidden access" });
+    app.post(
+      "/asset-requests",
+      verifyToken,
+      verifyEmployee,
+      async (req, res) => {
+        const request = req.body;
+        //  JWT token ar email
+        const tokenEmail = req.user.email;
+        //  Client side ar email
+        const clientEmail = request.requesterEmail;
+        // Match check
+        if (tokenEmail !== clientEmail) {
+          return res.status(403).send({ message: "Forbidden access" });
+        }
+
+        const newRequest = {
+          ...request,
+          
+          approvalDate: null, //pending thakle ata null thakbe..approve hole date set hobe
+
+          requestStatus: "pending",
+          requestDate: new Date(),
+          processedBy: null,
+        };
+        const result = await requestsCollection.insertOne(newRequest);
+        res.send(result);
       }
-
-      const newRequest = {
-        ...request,
-        approvalDate: null, //pending thakle ata null thakbe..approve hole date set hobe
-        
-        requestStatus: "pending",
-        requestDate: new Date(),
-        processedBy: null,
-      };
-      const result = await requestsCollection.insertOne(newRequest);
-      res.send(result);
-    });
+    );
     //requestsCollection aa employee ar data post----------(end)
-
-
-
 
     //"employee"  ar data "userCollection" aa post--(registration)---(start)
     app.post("/users/employee", async (req, res) => {
