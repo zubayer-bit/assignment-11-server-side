@@ -218,343 +218,7 @@ async function run() {
     // HR only: get own asset requests-----(end)
 
     //hr jokhon request approved korbe tar code----(start)
-    // app.patch(
-    //   "/asset-requests/approve/:id",
-    //   verifyToken,
-    //   verifyHr,
-    //   async (req, res) => {
-    //     const requestId = req.params.id;
-    //     //jwt token theke email:
-    //     const hrrEmail = req.user.email;
-
-    //     try {
-    //       //1:-----------
-    //       //akhn Update userCollection currentEmployees for HR
-    //       //but age check korbo je currentEmployees packageLimit er beshi na hoi jai:
-    //       const hr = await userCollection.findOne({ email: hrrEmail });
-    //       if (!hr) {
-    //         return res.status(404).send({ message: "HR not found" });
-    //       }
-    //       if (hr.currentEmployees >= hr.packageLimit) {
-    //         return res.status(403).send({
-    //           message: "Employee limit reached. Please upgrade your package.",
-    //         });
-    //       }
-    //       if (hr.currentEmployees < hr.packageLimit) {
-    //         const updateUserPakageRelatedInfo = {
-    //           $set: {
-    //             currentEmployees: hr.currentEmployees + 1,
-    //             updatedAt: new Date(),
-    //           },
-    //         };
-    //         const updateResult = await userCollection.updateOne(
-    //           { email: hrrEmail },
-    //           updateUserPakageRelatedInfo
-    //         );
-    //       }
-
-    //       //2:----------requestCollection ar data update korbo:
-    //       const request = await requestsCollection.findOne({
-    //         _id: new ObjectId(requestId),
-    //       });
-
-    //       if (!request)
-    //         return res.status(404).send({ message: "Request not found" });
-
-    //       if (request.requestStatus !== "pending") {
-    //         return res
-    //           .status(400)
-    //           .send({ message: "Request already processed" });
-    //       }
-
-    //       if (request.hrEmail !== hrrEmail) {
-    //         return res.status(403).send({ message: "Forbidden access" });
-    //       }
-
-    //       //akhn requestCollection ar data udate korbo,je data gulu update korbo ta destructuring kore nibo:
-    //       // const {assetId, assetName, assetType,requesterName, requesterEmail, hrEmail, companyName, note, approvalDate, requestStatus, requestDate, processedBy } = request;
-
-    //       //akhn update korbo requestCollection ar data:
-    //       const updateDoc = {
-    //         $set: {
-    //           requestStatus: "approved",
-    //           approvalDate: new Date(),
-    //           processedBy: hrrEmail,
-    //         },
-    //       };
-    //       //requestCollection aa "companyLogo" nai,tai "userCollection" theke nite hobe:
-    //       const hrUser = await userCollection.findOne({ email: hrrEmail });
-    //       if (!hrUser) {
-    //         return res.status(404).send({ message: "HR user not found" });
-    //       }
-    //       //company logo ta nibo:
-    //       const companyLogo = hrUser.companyLogo || null;
-
-    //       // amra jeno right data update korte pari tar jonno "id" dea dite hobe
-    //       const result = await requestsCollection.updateOne(
-    //         { _id: new ObjectId(requestId) },
-    //         updateDoc
-    //       );
-
-    //       //3;-------------
-    //       //akhn employeeAffiliationsCollection aa data inserrt korbo:
-    //       //check korbo employee affiliated agei ace kina:
-    //       const affiliation = await employeeAffiliationsCollection.findOne({
-    //         employeeEmail: request.requesterEmail,
-    //         hrEmail: request.hrEmail,
-    //       });
-    //       if (!affiliation) {
-    //         const affiliationData = {
-    //           employeeName: request.requesterName,
-    //           employeeEmail: request.requesterEmail,
-    //           hrEmail: request.hrEmail,
-    //           companyName: request.companyName,
-    //           companyLogo: companyLogo,
-    //           affiliationDate: new Date(),
-    //           status: "active",
-    //         };
-
-    //         const affiliationResult = await employeeAffiliationsCollection.insertOne(affiliationData);
-    //         if(!affiliationResult.insertedId){
-    //           return res.status(500).send({message:"Failed to create affiliation"});
-    //         }
-    //       }
-
-    //       //4:------assignedAssetsCollection aa data insert korbo:  kaj baki-------------->
-    //       //but tar age assets collection theke  id(request ar moddhe ace) dea  asset image ta nite hobe
-    //       const asset = await assetCollection.findOne({
-    //          _id: new ObjectId(request.assetId),
-    //       });
-    //       if (!asset) {
-    //         return res.status(404).send({ message: "Asset not found" });
-    //       }
-    //       const assignedAssetData = {
-    //         assetId: request.assetId, //ata check korte hobe object hisebe store hocce kina
-    //         assetName: request.assetName,
-    //         assetImage: asset.productImage,
-    //         assetType: request.assetType,
-    //         employeeEmail: request.requesterEmail,
-    //         employeeName: request.requesterName,
-    //         hrEmail: request.hrEmail,
-    //         companyName: request.companyName,
-    //         assignmentDate: new Date(),
-    //         returnDate: null,
-    //         status: "assigned",
-
-    //       }
-    //       const assignedAssetResult = await assignedAssetsCollection.insertOne(assignedAssetData);
-    //       if(!assignedAssetResult.insertedId){
-    //         return res.status(500).send({message:"Failed to assign asset"});
-    //       }
-
-    //       //5: -----assetCollection theke availableQuantity update korbo:
-    //       //but oi asset ta ace kina seta ame age check korbo:
-    //       const assetToUpdate = await assetCollection.findOne({
-    //         _id: new ObjectId(request.assetId),
-    //       });
-    //       if (!assetToUpdate) {
-    //         return res.status(404).send({ message: "Asset not found" });
-    //       }
-    //       const assetUpdateDoc = {
-    //         $set:{
-    //           availableQuantity: assetToUpdate.availableQuantity - 1,
-    //           updatedAt: new Date(),
-    //         }
-    //       }
-    //       const assetUpdateResult = await assetCollection.updateOne({_id: new ObjectId(request.assetId)}, assetUpdateDoc);   //check korte hobe id tikh vabepass hocce kina
-    //       if(assetUpdateResult.modifiedCount === 0){
-    //         return res.status(500).send({message:"Failed to update asset quantity"});
-    //       }
-
-    //       res.send({ result });
-    //     } catch (err) {
-    //       console.error(err);
-    //       res.status(500).send({ success: false, message: "Server error" });
-    //     }
-    //   }
-    // );
-
-    //new vabe akto update kore:
-    //     app.patch(
-    //   "/asset-requests/approve/:id",
-    //   verifyToken,
-    //   verifyHr,
-    //   async (req, res) => {
-    //     const requestId = req.params.id;
-    //     const hrEmail = req.user.email;
-
-    //     try {
-    //       /* ===============================
-    //          1️: Find request & validation
-    //       ================================ */
-    //       const request = await requestsCollection.findOne({
-    //         _id: new ObjectId(requestId),
-    //       });
-
-    //       if (!request) {
-    //         return res.status(404).send({ message: "Request not found" });
-    //       }
-
-    //       if (request.requestStatus !== "pending") {
-    //         return res.status(400).send({ message: "Request already processed" });
-    //       }
-
-    //       if (request.hrEmail !== hrEmail) {
-    //         return res.status(403).send({ message: "Forbidden access" });
-    //       }
-
-    //       /* ===============================
-    //          2️: HR package limit check
-    //       ================================ */
-    //       const hr = await userCollection.findOne({ email: hrEmail });
-
-    //       if (!hr) {
-    //         return res.status(404).send({ message: "HR not found" });
-    //       }
-
-    //       if (hr.currentEmployees >= hr.packageLimit) {
-    //         return res.status(403).send({
-    //           message: "Employee limit reached. Please upgrade your package.",
-    //         });
-    //       }
-
-    //       /* ===============================
-    //          3️: Update request status
-    //       ================================ */
-    //       const updateRequestResult = await requestsCollection.updateOne(
-    //         { _id: new ObjectId(requestId) },
-    //         {
-    //           $set: {
-    //             requestStatus: "approved",
-    //             approvalDate: new Date(),
-    //             processedBy: hrEmail,
-    //           },
-    //         }
-    //       );
-
-    //       if (updateRequestResult.modifiedCount === 0) {
-    //         return res.status(500).send({ message: "Failed to update request" });
-    //       }
-
-    //       /* ===============================
-    //          4️: Employee affiliation (one time)
-    //       ================================ */
-    //       const affiliationExists =
-    //         await employeeAffiliationsCollection.findOne({
-    //           employeeEmail: request.requesterEmail,
-    //           hrEmail: request.hrEmail,
-    //         });
-
-    //       if (!affiliationExists) {
-    //         const hrUser = await userCollection.findOne({ email: hrEmail });
-
-    //         const affiliationData = {
-    //           employeeName: request.requesterName,
-    //           employeeEmail: request.requesterEmail,
-    //           hrEmail: request.hrEmail,
-    //           companyName: request.companyName,
-    //           companyLogo: hrUser?.companyLogo || null,
-    //           affiliationDate: new Date(),
-    //           status: "active",
-    //         };
-
-    //         const affiliationResult =
-    //           await employeeAffiliationsCollection.insertOne(affiliationData);
-
-    //         if (!affiliationResult.insertedId) {
-    //           return res
-    //             .status(500)
-    //             .send({ message: "Failed to create affiliation" });
-    //         }
-    //       }
-
-    //       /* ===============================
-    //          5️: Find asset
-    //       ================================ */
-    //       const asset = await assetCollection.findOne({
-    //         _id: new ObjectId(request.assetId),
-    //       });
-
-    //       if (!asset) {
-    //         return res.status(404).send({ message: "Asset not found" });
-    //       }
-
-    //       if (asset.availableQuantity <= 0) {
-    //         return res
-    //           .status(400)
-    //           .send({ message: "Asset not available" });
-    //       }
-
-    //       /* ===============================
-    //          6️: Assign asset
-    //       ================================ */
-    //       const assignedAssetData = {
-    //         assetId: request.assetId, // ObjectId
-    //         assetName: request.assetName,
-    //         assetImage: asset.productImage,
-    //         assetType: request.assetType,
-    //         employeeEmail: request.requesterEmail,
-    //         employeeName: request.requesterName,
-    //         hrEmail: request.hrEmail,
-    //         companyName: request.companyName,
-    //         assignmentDate: new Date(),
-    //         returnDate: null,
-    //         status: "assigned",
-    //       };
-
-    //       const assignedResult =
-    //         await assignedAssetsCollection.insertOne(assignedAssetData);
-
-    //       if (!assignedResult.insertedId) {
-    //         return res
-    //           .status(500)
-    //           .send({ message: "Failed to assign asset" });
-    //       }
-
-    //       /* ===============================
-    //          7️: Update asset quantity
-    //       ================================ */
-    //       const assetUpdateResult = await assetCollection.updateOne(
-    //         { _id: new ObjectId(request.assetId) },
-    //         {
-    //           $inc: { availableQuantity: -1 },
-    //           $set: { updatedAt: new Date() },
-    //         }
-    //       );
-
-    //       if (assetUpdateResult.modifiedCount === 0) {
-    //         return res
-    //           .status(500)
-    //           .send({ message: "Failed to update asset quantity" });
-    //       }
-
-    //       /* ===============================
-    //          8️: Update HR currentEmployees (LAST STEP)
-    //       ================================ */
-    //       await userCollection.updateOne(
-    //         { email: hrEmail },
-    //         {
-    //           $inc: { currentEmployees: 1 },
-    //           $set: { updatedAt: new Date() },
-    //         }
-    //       );
-
-    //       /* ===============================
-    //          9️: Success response
-    //       ================================ */
-    //       res.send({
-    //         success: true,
-    //          result,
-    //         message: "Asset request approved successfully",
-    //       });
-    //     } catch (err) {
-    //       console.error(err);
-    //       res.status(500).send({ message: "Server error" });
-    //     }
-    //   }
-    // );
-
-    //aro new vabe:
+  
     app.patch(
       "/asset-requests/approve/:id",
       verifyToken,
@@ -733,8 +397,6 @@ async function run() {
               .send({ message: "Failed to update asset quantity" });
           }
 
-        
-
           /* ===============================
          8:Success response sesss
       =============================== */
@@ -751,6 +413,256 @@ async function run() {
     );
 
     //hr jokhon request approved korbe tar code----(end)
+
+    //hr direct-assign-asset to "employee" (modal ar--> "Assign" button click korle ja hobe)--------(start)
+//     app.patch("/direct-assign/:id", verifyToken, verifyHr, async(req,res)=>{
+//       const assetId = req.params.id;  //assetId "string"
+//       const { employeeEmail, employeeName } = req.body;
+
+//       //hr email from jwt token:
+//       const hrEmaill = req.user.email;
+//       // check affiliation
+// const affiliation = await employeeAffiliationsCollection.findOne({
+//   employeeEmail,
+//   hrEmaill,
+//   status: "active",
+// });
+
+// if (!affiliation) {
+//   return res
+//     .status(403)
+//     .send({ message: "Employee is not affiliated with you" });
+// }
+
+//       //try-catch apply kore:
+//       try{
+
+//          /* ===============================
+//          5️: ------Find asset  (akhane asset ar id lagbe)
+//       =============================== */
+//           const asset = await assetCollection.findOne({
+//             _id: new ObjectId(assetId),  //akhan theke asset ar value peye jabo
+//           });
+
+//           if (!asset) {
+//             return res.status(404).send({ message: "Asset not found" });
+//           }
+
+//           if (asset.availableQuantity <= 0) {
+//             return res.status(400).send({ message: "Asset not available" });
+//           }
+
+
+// /* ===============================
+//          6️:  Assign asset  (ai khane employee and asset ar value ja peye ci already ta lagbe
+//       =============================== */
+
+
+// if(asset){
+
+ 
+//           const assignedAssetData = {
+//             assetId: new ObjectId(assetId), //check korte hobe object hisebe store hocce kina
+//             assetName: asset.productName,
+//             assetImage: asset.productImage,
+//             assetType: asset.productType,
+//             employeeEmail: employeeEmail,
+//             employeeName:employeeName,
+//             hrEmail: asset.hrEmail,
+//             companyName: asset.companyName,
+//             assignmentDate: new Date(),
+//             returnDate: null, //return korle date add kore dite hbe
+//             status: "assigned", //return korle "returned" kore dite hbe
+//           };
+
+//           const assignedResult = await assignedAssetsCollection.insertOne(
+//             assignedAssetData
+//           );
+
+//           if (!assignedResult.insertedId) {
+//             return res.status(500).send({ message: "Failed to assign asset" });
+//           }
+// }
+
+
+
+
+
+//  /* ===============================
+//          7️:Update asset quantity
+//       =============================== */
+//           const assetUpdateResult = await assetCollection.updateOne(
+//             { _id: new ObjectId(assetId) }, //object hisebe id pass hocce kina ta check korte hobe
+//             {
+//               $inc: { availableQuantity: -1 },
+//               $set: { updatedAt: new Date() },
+//             }
+//           );
+
+//           if (assetUpdateResult.modifiedCount === 0) {
+//             return res
+//               .status(500)
+//               .send({ message: "Failed to update asset quantity" });
+//           }
+
+//    /* ===============================
+//          8:Success response sesss
+//       =============================== */
+//           res.send({
+//             success: true,
+// 		result:assignedResult,
+//             message: "Asset request approved successfully",
+//           });
+
+
+
+//       }catch(err){
+//         console.error(err);
+//         res.status(500).send({ message: "Server error"})
+//       }
+//     })
+
+//new vabe:
+app.patch("/directAssign/:id", verifyToken, verifyHr, async (req, res) => {
+  const assetId = req.params.id;
+  const { employeeEmail, employeeName } = req.body;
+  const hrEmail = req.user.email;
+
+  try {
+    // 1️ Check affiliation
+    const affiliation = await employeeAffiliationsCollection.findOne({
+      employeeEmail,
+      hrEmail,
+      status: "active",
+    });
+
+    if (!affiliation) {
+      return res.status(403).send({
+        message: "Employee is not affiliated with you",
+      });
+    }
+
+    // 2️ Find asset
+    const asset = await assetCollection.findOne({
+      _id: new ObjectId(assetId),
+      hrEmail,
+    });
+
+    if (!asset) {
+      return res.status(404).send({ message: "Asset not found" });
+    }
+
+    if (asset.availableQuantity <= 0) {
+      return res.status(400).send({ message: "Asset not available" });
+    }
+
+    // 3️ Assign asset
+    const assignedAssetData = {
+      assetId: asset._id,
+      assetName: asset.productName,
+      assetImage: asset.productImage,
+      assetType: asset.productType,
+      employeeEmail,
+      employeeName,
+      hrEmail,
+      companyName: asset.companyName,
+      assignmentDate: new Date(),
+      status: "assigned",
+    };
+
+    const assignedResult =
+      await assignedAssetsCollection.insertOne(assignedAssetData);
+
+      //---
+      if (!assignedResult.insertedId) {
+  return res.status(500).send({ message: "Failed to assign asset" });
+}
+
+    // 4️ Update quantity
+    await assetCollection.updateOne(
+      { _id: asset._id },
+      { $inc: { availableQuantity: -1 } }
+    );
+
+    res.send({
+      success: true,
+      result: assignedResult, 
+      message: "Asset assigned successfully",
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ message: "Server error" });
+  }
+});
+
+    //hr direct-assign-asset to "employee" (modal ar--> "Assign" button click korle ja hobe)--------(end)
+
+    //hr jokhn asset request rejected korbe tar code----(start)
+    app.patch(
+      "/hr/asset-requests/reject/:id",
+      verifyToken,
+      verifyHr,
+      async (req, res) => {
+        //client side theke id pacci...tai id ta "string" hisebe pabo
+        //ai req.body ar moddhe "requesCollection" ar data thakbe,client side ai datai patacci
+        const requestId = req.params.id;
+        //jwt token theke email:
+        const hrEmail = req.user.email;
+        //akhhn requestCollection aa ai "requestId" ar data ta ace kina ta check korbo:
+        const request = await requestsCollection.findOne({
+          _id: new ObjectId(requestId),
+        });
+        if (!request) {
+          return res.status(404).send({ message: "Request not found" });
+        }
+        if (request.requestStatus !== "pending") {
+          return res.status(400).send({ message: "Request already processed" });
+        }
+        if (request.hrEmail !== hrEmail) {
+          return res.status(403).send({ message: "Forbidden access" });
+        }
+        //akhhn requestCollection aa data update korbo:
+        const updateDoc = {
+          $set: {
+            requestStatus: "rejected",
+            processedBy: hrEmail,
+          },
+        };
+        const updateRequestResult = await requestsCollection.updateOne(
+          { _id: new ObjectId(requestId) },
+          updateDoc
+        );
+        if (!updateRequestResult.modifiedCount) {
+          return res.status(500).send({ message: "Failed to reject request" });
+        }
+        res.send({
+          success: true,
+          result: updateRequestResult,
+          message: "Asset request rejected successfully",
+        });
+      }
+    );
+    //hr jokhn asset request rejected korbe tar code----(end)
+
+    //akhn affiliations-employee der direct assign korar jonno get kora hocce-----(start)
+    app.get(
+      "/affiliations-employee",
+      verifyToken,
+      verifyHr,
+      async (req, res) => {
+        //age check korte hobe "employeeEmail" and "hrEmail" ace kina..jodi na thake tahole get hobe na
+
+        //hr email from jwt token:
+        const hrEmail = req.user.email;
+
+        const employee = await employeeAffiliationsCollection
+          .find({ hrEmail: hrEmail, status: "active" })
+          .toArray();
+
+        res.send(employee);
+      }
+    );
+    //akhn affiliations-employee der direct assign korar jonno get kora hocce-----(end)
 
     //requestsCollection aa employee ar data post----------(start)
     app.post(
