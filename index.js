@@ -287,58 +287,141 @@ async function run() {
           /* ===============================
          4️: ------Employee affiliation+ currentEmployees increase code (first time)
       =============================== */
-          let isNewEmployee = false;
+          // let isNewEmployee = false;
 
-          const affiliationExists =
-            await employeeAffiliationsCollection.findOne({
-              employeeEmail: request.requesterEmail,
-              hrEmail: request.hrEmail,
-            });
+          // const affiliationExists =
+          //   await employeeAffiliationsCollection.findOne({
+          //     employeeEmail: request.requesterEmail,
+          //     hrEmail: request.hrEmail,
+          //   });
 
-          if (!affiliationExists) {
-            const hrUser = await userCollection.findOne({ email: hrEmail });
+          // if (!affiliationExists) {
+          //   const hrUser = await userCollection.findOne({ email: hrEmail });
 
-            const affiliationData = {
-              employeeName: request.requesterName,
-              employeeEmail: request.requesterEmail,
-              hrEmail: request.hrEmail,
-              companyName: request.companyName,
-              companyLogo: hrUser?.companyLogo || null,
-              affiliationDate: new Date(),
-              status: "active",
-            };
+          //   const affiliationData = {
+          //     employeeName: request.requesterName,
+          //     employeeEmail: request.requesterEmail,
+          //     hrEmail: request.hrEmail,
+          //     companyName: request.companyName,
+          //     companyLogo: hrUser?.companyLogo || null,
+          //     affiliationDate: new Date(),
+          //     status: "active",
+          //   };
 
-            const affiliationResult =
-              await employeeAffiliationsCollection.insertOne(affiliationData);
+          //   const affiliationResult =
+          //     await employeeAffiliationsCollection.insertOne(affiliationData);
 
-            if (!affiliationResult.insertedId) {
-              return res
-                .status(500)
-                .send({ message: "Failed to create affiliation" });
-            }
+          //   if (!affiliationResult.insertedId) {
+          //     return res
+          //       .status(500)
+          //       .send({ message: "Failed to create affiliation" });
+          //   }
 
-            //true korlam,jodi notun employee hoi:
-            isNewEmployee = true;
-          }
+          //   //true korlam,jodi notun employee hoi:
+          //   isNewEmployee = true;
+          // }
 
-          //currentEmployees increase korbo,jodi notun employee hoi:
-          if (isNewEmployee) {
-            //----------------
-            const hrUpdateResult = await userCollection.updateOne(
-              { email: hrEmail },
-              {
-                // $inc mane existing value ar sathe add kore dibe
-                $inc: { currentEmployees: 1 },
-                $set: { updatedAt: new Date() },
-              }
-            );
+          // //currentEmployees increase korbo,jodi notun employee hoi:
+          // if (isNewEmployee) {
+          //   //----------------
+          //   const hrUpdateResult = await userCollection.updateOne(
+          //     { email: hrEmail },
+          //     {
+          //       // $inc mane existing value ar sathe add kore dibe
+          //       $inc: { currentEmployees: 1 },
+          //       $set: { updatedAt: new Date() },
+          //     }
+          //   );
 
-            if (hrUpdateResult.modifiedCount === 0) {
-              return res
-                .status(500)
-                .send({ message: "Failed to update HR employee count" });
-            }
-          }
+          //   if (hrUpdateResult.modifiedCount === 0) {
+          //     return res
+          //       .status(500)
+          //       .send({ message: "Failed to update HR employee count" });
+          //   }
+          // }
+
+          //ai code ta new vabe kora holo...hr "remove" button click korle "employee"-->"affiliatedEmployee" list theke delete korte cina,just-->status: inactve korci....tai ai code ta update kore set korlam:
+
+
+          /* ===============================
+   4️:---- Employee affiliation + currentEmployees logic
+================================ */
+
+let shouldIncreaseEmployeeCount = false;
+
+// find existing affiliation (active OR inactive)
+const affiliation = await employeeAffiliationsCollection.findOne({
+  employeeEmail: request.requesterEmail,
+  hrEmail: request.hrEmail,
+});
+
+//  1️: Completely new employee
+if (!affiliation) {
+  const hrUser = await userCollection.findOne({ email: hrEmail });
+
+  const affiliationData = {
+    employeeName: request.requesterName,
+    employeeEmail: request.requesterEmail,
+    hrEmail: request.hrEmail,
+    companyName: request.companyName,
+    companyLogo: hrUser?.companyLogo || null,
+    affiliationDate: new Date(),
+    status: "active",
+  };
+
+  const affiliationResult =
+    await employeeAffiliationsCollection.insertOne(affiliationData);
+
+  if (!affiliationResult.insertedId) {
+    return res
+      .status(500)
+      .send({ message: "Failed to create affiliation" });
+  }
+
+  shouldIncreaseEmployeeCount = true;
+}
+
+//  2️: Existing but inactive employee (re-join)
+else if (affiliation.status === "inactive") {
+  const affiliationUpdateResult =
+    await employeeAffiliationsCollection.updateOne(
+      { _id: affiliation._id },
+      {
+        $set: {
+          status: "active",
+          affiliationDate: new Date(),
+        },
+      }
+    );
+
+  if (affiliationUpdateResult.modifiedCount === 0) {
+    return res
+      .status(500)
+      .send({ message: "Failed to reactivate affiliation" });
+  }
+
+  shouldIncreaseEmployeeCount = true;
+}
+
+// 3️: Already active employee → do nothing
+
+// Increase HR employee count only when needed
+if (shouldIncreaseEmployeeCount) {
+  const hrUpdateResult = await userCollection.updateOne(
+    { email: hrEmail },
+    {
+      $inc: { currentEmployees: 1 },
+      $set: { updatedAt: new Date() },
+    }
+  );
+
+  if (hrUpdateResult.modifiedCount === 0) {
+    return res
+      .status(500)
+      .send({ message: "Failed to update HR employee count" });
+  }
+}
+
 
           /* ===============================
          5️: ------Find asset
@@ -360,6 +443,7 @@ async function run() {
       =============================== */
           const assignedAssetData = {
             assetId: request.assetId, //check korte hobe object hisebe store hocce kina
+            
             assetName: request.assetName,
             assetImage: asset.productImage,
             assetType: request.assetType,
@@ -522,13 +606,24 @@ async function run() {
 //       }
 //     })
 
-//new vabe:
+//new vabe:  //ai code ta new vabe kora holo...hr "remove" button click korle "employee"-->"affiliatedEmployee" list theke delete korte cina,just-->status: inactve korci....tai ai code ta update kore set korlam:
 app.patch("/directAssign/:id", verifyToken, verifyHr, async (req, res) => {
   const assetId = req.params.id;
   const { employeeEmail, employeeName } = req.body;
   const hrEmail = req.user.email;
 
   try {
+    //package limit check:
+    const hr = await userCollection.findOne({ email: hrEmail });
+    if (!hr) {
+  return res.status(404).send({ message: "HR not found" });
+}
+
+if (hr.currentEmployees >= hr.packageLimit) {
+  return res.status(403).send({
+    message: "Employee limit reached. Please upgrade your package.",
+  });
+}
     // 1️ Check affiliation
     const affiliation = await employeeAffiliationsCollection.findOne({
       employeeEmail,
@@ -562,10 +657,11 @@ app.patch("/directAssign/:id", verifyToken, verifyHr, async (req, res) => {
       assetName: asset.productName,
       assetImage: asset.productImage,
       assetType: asset.productType,
-      employeeEmail,
+      employeeEmail,      //ai 3ta check korte hbe pore...
       employeeName,
       hrEmail,
       companyName: asset.companyName,
+      returnDate: null, 
       assignmentDate: new Date(),
       status: "assigned",
     };
@@ -596,6 +692,163 @@ app.patch("/directAssign/:id", verifyToken, verifyHr, async (req, res) => {
 });
 
     //hr direct-assign-asset to "employee" (modal ar--> "Assign" button click korle ja hobe)--------(end)
+
+
+//**************(my employee page)******************** */
+    //hr ar my employee page ar jonno data get kora holo--------------(start)
+    app.get("/hr/my-employees", verifyToken, verifyHr, async(req,res)=>{
+      try{
+        //hr token from jwt token:
+        const hrEmail = req.user.email;
+
+        //1:---Active affiliations(hrEmail, "active" status dea khujbo, tahole only fixed "hrEmail" ar jonnoi find hobe)
+        const employees = await employeeAffiliationsCollection.find({hrEmail, status: "active"}).toArray()
+
+        //2:---Add asset count + profile image nibo akhn:
+         const employeesWithAssets = await Promise.all(employees.map(async(emp) =>{
+          //asset count ar kaj korbo akhn:
+           const assetCount = await assignedAssetsCollection.countDocuments({employeeEmail: emp.employeeEmail, hrEmail,  status: "assigned",});
+
+           //akhn employee profile image --> users collection theke nibo:
+          const employeeUser = await userCollection.findOne({email:emp.employeeEmail},
+            //only profileImage paoa jabe...ai code dea ata bujai
+            {projection: {profileImage:1}}
+
+           );
+
+           //akhn value gulu ke return korbo:
+           return{
+               _id: emp._id,
+            employeeName: emp.employeeName,
+            employeeEmail: emp.employeeEmail,
+            employeePhoto: employeeUser?.profileImage || null,
+            affiliationDate: emp.affiliationDate,
+            assetCount,
+
+           };
+
+
+         })
+        );
+
+        //res:
+        res.send(employeesWithAssets)        
+
+
+      }catch(err){
+        console.error(err);
+        res.status(500).send({message: "Server error"})
+      }
+    })
+    //hr ar my employee page ar jonno data get kora holo--------------(end)
+
+     //hr ar my-employee page ar jonno-->(currentEmployees+packageLimit) data get kora holo--------------(start)
+     app.get("/hr/package-info", verifyToken, verifyHr, async(req,res)=>{
+      const hrEmail = req.user.email;
+
+      const hr = await userCollection.findOne({email:hrEmail });
+
+      res.send({
+         currentEmployees: hr.currentEmployees,
+      packageLimit: hr.packageLimit,
+
+      })
+     })
+     //hr ar my-employee page ar jonno-->(currentEmployees+packageLimit) data get kora holo--------------(end)
+
+     //akhn hr jokhn "Remove" button click korbe -->(my employee page) theke...tokhn ja ja hobe tar code(employee remove hbe)---------(start)
+
+     //ai "id" employeeAffiliation ar employee ar "id"----->
+   app.patch("/hr/remove-employee/:id", verifyToken, verifyHr, async (req, res) => {
+  const id = req.params.id;
+  const hrEmail = req.user.email;
+
+  try {
+    // 1️: Find active affiliation
+    const affiliation = await employeeAffiliationsCollection.findOne({
+      _id: new ObjectId(id),
+      hrEmail,
+      status: "active",
+    });
+
+    if (!affiliation) {
+      return res.status(404).send({ message: "Employee not found" });
+    }
+
+    // 2️: Set affiliation inactive
+    await employeeAffiliationsCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { status: "inactive" } }
+    );
+
+    // 3️: Find assigned assets
+    const assignedAssets = await assignedAssetsCollection.find({
+      employeeEmail: affiliation.employeeEmail,
+      hrEmail: affiliation.hrEmail,
+      status: "assigned",
+    }).toArray();
+
+    // 4️: Return assets (quantity + request + assignedAssets)
+    for (const asset of assignedAssets) {
+      // increase quantity
+      await assetCollection.updateOne(
+        { _id: new ObjectId(asset.assetId) },
+        { $inc: { availableQuantity: 1 } }
+      );
+
+      // // update request status (specific approved request)
+      await requestsCollection.updateOne(
+        {
+          assetId: new ObjectId(asset.assetId),
+          requesterEmail: asset.employeeEmail,
+          hrEmail: asset.hrEmail,
+          requestStatus: "approved",
+        },
+        { $set: { requestStatus: "returned" } }
+      );
+    }
+
+    // 5️: Update assignedAssets status
+       //note:
+         // employee jokhn tar my asset page aa data get korbe,tokhn (hrEmail,employeeEmail,
+// status:assigned) ai 3ta condition set kore data get korte hbe....rr jokhn 
+// status: "returned"...hobe tokhn rr data get korte parbe na...avabe remove button click korle..oi employee rr assign asset collection theke data get korte parbe na...mane asset gulu back hoa jabe
+    await assignedAssetsCollection.updateMany(
+      {
+        employeeEmail: affiliation.employeeEmail,
+        hrEmail: affiliation.hrEmail,
+        status: "assigned",
+      },
+      {
+        $set: {
+          status: "returned",
+          returnDate: new Date(),
+        },
+      }
+    );
+
+    // 6️: Decrease HR employee count
+    await userCollection.updateOne(
+      { email: hrEmail },
+      { $inc: { currentEmployees: -1 } }
+    );
+
+    res.send({
+      success: true,
+      message: "Employee removed and assets returned successfully",
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ message: "Server error" });
+  }
+});
+
+     //akhn hr jokhn "Remove" button click korbe -->(my employee page) theke...tokhn ja ja hobe tar code---------(end)
+//***************(my employee page)****************** */
+
+
+
+
 
     //hr jokhn asset request rejected korbe tar code----(start)
     app.patch(
@@ -770,7 +1023,9 @@ app.patch("/directAssign/:id", verifyToken, verifyHr, async (req, res) => {
     });
 
     //edit asset ar jonno data get---------(end)
+//*************(employee  dashboard)**************(start)* */
 
+    //-----------------------1:
     //employee ar request asset ar jonno data get "assectCollection" theke-------(start)
     app.get("/asset/available", async (req, res) => {
       //$gt = greater than
@@ -781,6 +1036,103 @@ app.patch("/directAssign/:id", verifyToken, verifyHr, async (req, res) => {
       res.send(assets);
     });
     //employee ar request asset ar jonno data get "assectCollection" theke-------(end)
+
+
+    //-----------------------2:(My Asset)
+    //akhn employee ar "My Asset" page ar jonno data get-->"assignAssetCollection" theke...and (search+ filter) soho code--------(start)
+    app.get("/employee/my-assets", verifyToken, verifyEmployee, async(req,res)=>{
+      //try-catch use kore:
+
+      try{
+
+        //1: jwt token theke "employee" ar email nea:
+        const employeeEmail = req.user.email;
+
+        //2: client-side theke "search", "filter" ar value asbe...sei value gulu receive korbo:-->note: "?" mark ar pore value gulu send kora hoace.tai "query" ar moddhe pabo...
+
+        //""--> dilam...jodi kono value na pai,tahole "empty" string set hobe,then all value get(retunable, non-retunable) hobe...
+        const{searchText="", type=""} = req.query;
+
+        //3: akhn "query" set korbo:
+
+        let query = {
+          employeeEmail: employeeEmail,
+          status: "assigned",
+
+        }
+
+        //4:"type" ar value dea get korar jonno-->"query" set kora holo:
+        if(type){
+          query.assetType = type;
+        }
+
+        //5: asset name dea search..ar value "query" te set korlam:
+        if(searchText){
+        query.assetName ={ $regex: searchText, $options: "i" };
+        } 
+
+       
+        //6: akhn "find" korbo-->"assignedAssetsCollection" ar moddhe:
+        const assets = await assignedAssetsCollection.find(query).sort({assignmentDate: -1}).toArray();
+
+         //data get from "multiple--> collection":  ----testing
+         //2:---Add asset count + profile image nibo akhn:
+         const employeesWithAssets = await Promise.all(assets.map(async(emp) =>{
+          
+           //akhn employee profile image --> users collection theke nibo:
+          const employeeUser = await requestsCollection.findOne(
+            
+          
+             {
+    assetId: emp.assetId,
+    requesterEmail: employeeEmail,
+    requestStatus: "approved",
+  },
+  { sort: { requestDate: -1 } }
+
+           );
+
+           //akhn value gulu ke return korbo:
+           //Asset Image, Asset Name, Asset Type (Returnable/Non-returnable), Company Name, Request Date, Approval Date, Status
+           return{
+               assetImage: emp.assetImage,
+            assetName: emp.assetName,
+            assetType: emp.assetType,
+            companyName: emp.companyName,
+            assignmentDate: emp.assignmentDate,
+            status: emp.status,
+            requestDate: employeeUser?.requestDate || null,
+            requestStatus:employeeUser?.requestStatus,
+
+           };
+
+
+         })
+        );
+//---------------------------(end)-----testing
+
+        res.send(employeesWithAssets);
+
+
+      }catch(err){
+       console.error(err);
+      res.status(500).send({ message: "Server error" });
+
+      }
+    })
+    //akhn employee ar "My Asset" page ar jonno data get-->"assignAssetCollection" theke...and (search+ filter) soho code--------(end)
+
+
+
+    //----------------3:(My team)
+    //akhn employee ar team ar jonno data get korbo----------(start)
+    //Get Companies Where Employee Is Affiliated
+
+    // app.get("/employee/my-companies", verifyToken, verifyEmployee, async)
+    //akhn employee ar team ar jonno data get korbo----------(end)
+
+
+  //*************(employee  dashboard)**************(end)* */
 
     //Asset list ar data paoar  jonno-------(start)
     //  app.get("/assets",verifyToken,async(req,res)=>{
