@@ -1015,6 +1015,67 @@ async function run() {
       res.send(asset);
     });
 
+    //*****************hr dashboard******************(start) */
+    //----------------(hr profile)---------(start)
+    //1: akhn hr info and affiliated info nibo:
+    // HR profile get
+    app.get("/hr/profile", verifyToken, verifyHr, async (req, res) => {
+      try {
+        const hrEmail = req.user.email;
+
+        const user = await userCollection.findOne(
+          { email: hrEmail, role: "hr" },
+          {
+            projection: {
+              name: 1,
+              email: 1,
+              role: 1,
+              companyName: 1,
+              profileImage: 1,
+              packageLimit: 1,
+              currentEmployees: 1,
+              subscription: 1,
+              createdAt: 1,
+              dateOfBirth: 1,
+            },
+          }
+        );
+
+        res.send({ user });
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ message: "Failed to load HR profile" });
+      }
+    });
+
+    //2:akhn hr ar data update korbo:
+    // HR profile update
+    app.patch("/update/hrProfile", verifyToken, verifyHr, async (req, res) => {
+      try {
+        const hrEmail = req.user.email;
+        const updateData = req.body;
+
+        const result = await userCollection.updateOne(
+          { email: hrEmail, role: "hr" },
+          {
+            $set: {
+              ...updateData,
+              updatedAt: new Date(),
+            },
+          }
+        );
+
+        res.send({ result });
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ message: "HR profile update failed" });
+      }
+    });
+
+    //----------------(hr profile)---------(end)
+
+    //*****************hr dashboard******************(end) */
+
     //edit asset ar jonno data get---------(end)
     //*************(employee  dashboard)**************(start)* */
 
@@ -1217,9 +1278,20 @@ async function run() {
           //akhn up-coming birstday related code:
           let birthdays = [];
 
+          //ai variable aa email set korbo,jeno check korte pari same email ar data "birthday" variable aa set na hoa
+          let addedEmails = [];
+
           //akhn ai "team" ar moddhe employee der "email" ace...ai email dea "userCollection" theke date of birth gulu nea nibo:
           //akta akta kore "employee" ar data dea -->"userCollection" aa "findOne" korbo tai:
           for (const member of team) {
+            // agei email add kora thakle skip hoa jabe...mane repeat ai same emai ar data -->birthdays ar moddhe set hobe na
+            if (addedEmails.includes(member.employeeEmail)) {
+              //jodi agei same kono email add hoa jabe...tahole -->continue mane --> এই loop iteration skip করো
+              // nicher kono code cholbe na
+              //direct next member a jabe
+              continue;
+            }
+
             const user = await userCollection.findOne(
               { email: member.employeeEmail },
               {
@@ -1237,12 +1309,13 @@ async function run() {
                 photo: user.profileImage || null,
                 dateOfBirth: user.dateOfBirth,
               });
+
+              // ai email "addEmails" ar moddhe push korlam...jeno second time ai same email asle oporer--->if (addedEmails.includes(member.employeeEmail))  ai line aa check korte pare
+              addedEmails.push(member.employeeEmail);
             }
           }
 
-
           res.send(birthdays);
-
         } catch (err) {
           console.log(err);
           res.status(500).send({ message: "Server error" });
@@ -1250,6 +1323,111 @@ async function run() {
       }
     );
     //akhn "up-coming-->birthday get korar code"-----------(end)
+
+    //------------------------4: (Employee Profile)
+
+    //akhn employee ar "email,photo" get korbo-->"userCollection" theke--------(start)
+    app.get(
+      "/profile/employee",
+      verifyToken,
+      verifyEmployee,
+      async (req, res) => {
+        try {
+          const employeeEmail = req.user.email;
+
+          //userCollection theke email,photo,name,photo,role nilam
+          const user = await userCollection.findOne(
+            { email: employeeEmail, role: "employee" },
+            {
+              projection: {
+                name: 1,
+                email: 1,
+                role: 1,
+                dateOfBirth: 1,
+                profileImage: 1,
+              },
+            }
+          );
+          // console.log('user data:', user);
+
+          //current affiliated company ar info nilam:
+          const affiliations = await employeeAffiliationsCollection
+            .find(
+              { employeeEmail: employeeEmail, status: "active" },
+              { projection: { companyName: 1, affiliationDate: 1 } }
+            )
+            .toArray();
+
+          res.send({ user, affiliations });
+
+          // 3️: only company names
+          // const companies = affiliations.map(a => a.companyName);
+
+          //     //akhn ai 2ta datai send kore dibo:
+          //     res.send({user, companies})
+
+          //new vabe:
+          //akhn "userCollection" theke "role, photo,date Of birth,get korbo:
+          // const EmployeeProfile = await Promise.all(
+          //   user.map(async (member) => {
+          //     const user = await employeeAffiliationsCollection.findOne(
+          //       { employeeEmail: member.email,status: "active" },
+          //       { projection: { companyName: 1} }
+          //     );
+
+          //     //akhn value gulu retun korbo:
+          //     return {
+          //       name: member.name,
+          //       email: member.email,
+          //       position: member.role,
+          //       photo: member?.profileImage || null,
+          //       companyName: user.companyName,
+          //     };
+          //   })
+          // );
+          // res.send(EmployeeProfile)
+        } catch (err) {
+          console.error(err);
+          res.status(500).send({ message: "Failed to load profile" });
+        }
+      }
+    );
+    //akhn employee ar "email,photo" get korbo-->"userCollection" theke--------(end)
+
+    //akhn employee ar "profile image+other info" update korbo--------(start)
+    app.patch(
+      "/update/employeeProfileImage",
+      verifyToken,
+      verifyEmployee,
+      async (req, res) => {
+        try {
+          const employeeEmail = req.user.email;
+
+          //client side theke je data send koreci,ta receive korbo:
+          const employeeData = req.body;
+          // console.log('employee data:', employeeData)
+          // const {} = employeeData;
+
+          //update info:
+          const updateInfo = {
+            $set: {
+              ...employeeData,
+              updatedAt: new Date(),
+            },
+          };
+          const result = await userCollection.updateOne(
+            { email: employeeEmail, role: "employee" },
+            updateInfo
+          );
+
+          res.send({ result });
+        } catch (err) {
+          console.error(err);
+          res.status(500).send({ message: "Profile update failed" });
+        }
+      }
+    );
+    //akhn employee ar "profile image" update korbo--------(end)
 
     //*************(employee  dashboard)**************(end)* */
 
