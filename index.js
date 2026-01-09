@@ -14,6 +14,10 @@ const app = express();
 //1:-----(mongodb)-----mongodb connection:
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
+//---payment process: step:1
+const stripe = require('stripe')(process.env.STRIPE_SECRET);
+
+
 //"process.env.PORT ||" add kora holo
 const port = process.env.PORT || 3000;
 
@@ -77,6 +81,8 @@ async function run() {
     const assetCollection = db.collection("assets");
     const requestsCollection = db.collection("requests");
     const assignedAssetsCollection = db.collection("assignedAssets");
+    const paymentCollection = db.collection("payment");
+    const packagesCollection = db.collection("packages");   //ata kaj korbo akhn...
     const employeeAffiliationsCollection = db.collection(
       "employeeAffiliations"
     );
@@ -154,6 +160,16 @@ async function run() {
     });
 
     //"hr"  ar data "userCollection" aa post-----(end)
+
+    //****************(home page)********(start)** */
+
+    //1: packageCollection theke data get kore home ar package section aa set kora holo------(start)
+    app.get("/packages/homePage",async(req,res)=>{
+      const result = await packagesCollection.find({}).toArray();
+      res.send(result);
+    })
+    //1: packageCollection theke data get kore home ar package section aa set kora holo------(start)
+    //****************(home page)********(end)** */
 
     //assectCollection aa hr ar data post----------(start)
     app.post("/assets", verifyToken, verifyHr, async (req, res) => {
@@ -1073,6 +1089,328 @@ async function run() {
     });
 
     //----------------(hr profile)---------(end)
+
+
+    //-----------(hr upgrade package page)--------(start)
+    //1:--------akhn package load korbo:
+     app.get("/packages/forHr",verifyToken,verifyHr,async(req,res)=>{
+      const result = await packagesCollection.find({}).toArray();
+      res.send(result);
+    })
+
+
+    //2: akhn upgrade button ke conditional korar jonno "userCollection" theke hr ar data get:
+    app.get("/users/hr", verifyToken, verifyHr, async (req, res) => {
+  const email = req.user.email;
+  const hr = await userCollection.findOne({ email });
+  res.send(hr);
+});
+
+
+  //---payment process: step:2.1(next step:3 client-side->hrPackageUpgrade) [akhn payment ar checkOut session make korbo] "post"
+  app.post("/payment-checkout-session",verifyToken, async(req,res)=>{
+    try{
+      const hrEmaill = req.user.email;
+    //1:client side theke data nibo:
+    const paymentInfo = req.body;
+
+      //amount ke "parseInt" kore nite hobe...jeno intiger/number paoa jai,calculate korar jonno
+      //2:amount: cent a hisab korte hobe,tai 100 dea multipy kora hoi ce.
+      const amounts = parseInt(paymentInfo.amount) * 100;
+
+      //3:
+    const session = await stripe.checkout.sessions.create({
+    line_items: [
+      {
+        // Provide the exact Price ID (for example, price_1234) of the product you want to sell
+        price_data: {
+           currency: "USD",
+              //amount ta "cent" ar hisebe hobe,,1500cent
+              unit_amount: amounts,
+
+              //price_data ar child hocce: "product_data"
+              product_data: {
+                //PRODUCT ar info: strip aaa pay korar page aa show hobe
+                name: `Please pay for ${paymentInfo.packageName}`,
+              },
+        },
+        //ame akti package kinte payment korbo,tai "quantity=1"
+        quantity: 1,
+      },
+    ],
+   //extra add kora holo: customer email [APIs & SDKs-->https://docs.stripe.com/api/checkout/sessions/create]-->ai khane code ace..api related
+         //
+        mode: "payment",
+        // hrEmail: hrEmaill, 
+        //atao add kora holo:
+        metadata: {
+          hrId: paymentInfo.hrId,  //ata dea userCollection aa tikh "hr" ke khujbo
+          packageName: paymentInfo.packageName,
+
+          //ai 2ta new vabe add kora holo----------------**
+          employeeLimit: paymentInfo.employeeLimit,
+          // amount: paymentInfo.amount,
+           hrEmail: hrEmaill, //ata akhane add kora holo
+
+          //2:--(same trackingId rakhar code)---"session" ar moddhe "trackingId" add kore dilam...client side theke send kora hoice "trackingId"
+          // trackingId: paymentInfo.trackingId,  //---drkr hole use kora hobe
+        },
+    //payment completed hole akta success page ase...sei page asar jonno akta url(jei url(client-side url) aa show hobe) lagbe...sei url tai-->YOUR_DOMAIN ss set korbo
+    //payment success hoa gele je page aa jabe...sei componet client side aa make kore,sei page aa jaoar "route(path: "payment-success",Component: PaymentSuccess,)" router aa set kore...oi page ar "url" ta akhane bosabo..jeno success hole ai url link use kore "success page" ta client ar -->"PaymentSuccess" page aa ase
+
+
+
+    success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+
+
+    // jodi payment korte gea cancelled hoa jai tahole ata back korbe
+        // cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled`,
+
+        //akhn-->paymentCollection ar status:failed ar kaj--> cancel ar kaj korbo-->1:
+        cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled?session_id={CHECKOUT_SESSION_ID}`,
+
+  });
+  //  console.log('session data:',session);
+
+
+  //  PENDING payment add korlam...ai line aa client side aa just strip page open hoa--add korlam:1
+  // const pendingPayment = {
+  //   hrEmail: hrEmaill,
+  //   packageName: paymentInfo.packageName,
+  //   employeeLimit: Number(paymentInfo.employeeLimit),
+  //   amount: amounts/100,
+  //   status: "pending",
+  //   sessionId: session.id,
+  //   createdAt: new Date(),
+  // };
+
+  // await paymentCollection.insertOne(pendingPayment);
+      //client side aa send kora holo: akti object ar moddhe "url" property name dea...
+      //kaj korle client side akti "url" res hisebe jabe
+
+      //new vabe:------------->
+       await paymentCollection.updateOne(
+      { hrEmail: hrEmaill, packageName: paymentInfo.packageName },
+      {
+        $set: {
+          hrEmail: hrEmaill,
+          packageName: paymentInfo.packageName,
+          amount: amounts / 100,
+          employeeLimit: Number(paymentInfo.employeeLimit),
+          status: "pending",
+          sessionId: session.id,
+          updatedAt: new Date(),
+        },
+        // ata(setOnInsert) only insert ar time aa active hobe
+        $setOnInsert: {
+          createdAt: new Date(),
+        },
+      },
+      // upsert: true thakle match ar time aa data na peleo ai info gulu insert hobe first time..
+      { upsert: true }
+    );
+      
+      res.send({ url: session.url });
+    }catch(err){
+      console.error(err);
+      res.status(500).send({success: false})
+    }
+  })
+  
+
+  //---payment process: step:2.2(/payment-success)  (client side ar "PaymentSuccess.jsx" page theke "session_id" receive kore-->"patch(`/payment-success?session_id=${sessionId}`)" ar moddhe me--> server-side aa send kora hoice, mane payment complete hoi ce)
+  app.patch("/payment-success",async(req,res)=>{
+    //client side theke "session id" server aa send kora hoice-->"session_id" name aa,setai receive korbo:
+      //1:Stripe success page থেকে session_id query হিসাবে আসবে
+      const sessionId = req.query.session_id;
+
+
+
+       //id jokhon peye jabo...client-side theke tokhon:-->"retrieve-->mane data ke nea asbo"
+      //2:ai line dea Stripe-ar session database aa je  payment info ace — seta ame server theke fetch korci..
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+
+      //3:
+       if (session.payment_status !== "paid") {
+        return res.send({ success: false }); // এখানে safe
+      }
+
+
+      //4:
+        //-----(start)----(problem with solution)-------app.patch ai code ta complete krar pore akti problem hocce,same data 2bar data-base aa store hocce,
+      //solution:tai akhn amra "transactionId" dea condition set korbo,jeno same "transactionId" dea repeat kono data store na hote pare
+
+      //akbar payment complete hole then repeat data store hole ai code activve korbo------
+
+      // //"transactionId" ta nea nibo---(ata payment complete hole,cmd te paoa jai)
+      const transactionId = session.payment_intent;
+      //ai id query te set korbo:
+      const paymentQuery = { transactionId: transactionId };
+      //ai query dea "data-base" aa "findOne" korbo je ai data ace kina:
+      const paymentExist = await paymentCollection.findOne(paymentQuery);
+
+      // console.log("paymentExist", paymentExist); //jei data match korbe,seta akhane paoa jabe
+
+      //jodi already thake,tahole "return" kore dibo:..mane akbar data store houar pore,second time jokhon store hote nibe,tokhon rr hobe na,return hoa jabe..
+
+       if (paymentExist) {
+        //ai line thekei return hoa jabe
+        //jei data match korbe tar -->trackingId,transactionId..client side aa send kore dilam,
+        return res.send({
+          message: "already exits this in db:",
+          transactionId,
+          // trackingId: paymentExist.trackingId, //drkr hole use kora hobe
+        });
+      }
+
+       //-----(end)----(problem with solution)---
+
+
+      //  "session.meta" ar vitore already je "trackingId" ace oi tai ai line aa set kore dibo
+      //5:--(same trackingId rakhar code)
+      // const trackingId = session.metadata.trackingId; //drkr hole use kora hobe
+
+
+        //6:
+        if (session.payment_status === "paid"){
+
+           //ame je id(ata data-base je data ace oi "_id" tai,,client-side theke set kore pathai cilam) set kore cilam...metadata te,seta nibo
+        const hrId = session.metadata.hrId;
+        // ai id ke data-base ar "id" ar format aa nibo:
+        const query = { _id: new ObjectId(hrId) };
+
+         //baki code ai link a kora thake:mongodb docs: https://www.mongodb.com/docs/drivers/node/current/crud/update/
+        const update = {
+          $set: {
+            packageLimit: Number(session.metadata.employeeLimit),
+            subscription: session.metadata.packageName, 
+            updatedAt: new Date(),
+          },
+        };
+
+         const updateHrInfo = await userCollection.updateOne(query, update);
+
+         //akhane akta "res" add korte hobe
+
+
+         //7:-------------------***********--------paymentCollection aa data insert korar code:
+          //ai data gulu keo ame add korbo: payment success jokhon hobe tokhon ai khane ai data gulu pabo,then new "collection-->(paymentCollection)" a add korbo niche...----(start)
+        //1:-------------key:(with tracking info)
+        //paymentCollection ar data match korar jonno ai 2ta field use korbo:
+         const hrEmail = session.metadata.hrEmail;
+    const packageName = session.metadata.packageName;
+        const paymentUpdate = {
+          amount: session.amount_total / 100, //100 dea divide korlam,karon "amount" ta "cent" hisebe ascilo,tai 100 dea divide kore doller kore nilam,
+          hrEmail: session.metadata.hrEmail,
+          packageName: session.metadata.packageName,
+          employeeLimit: Number(session.metadata.employeeLimit),
+         
+
+          //taka je transition hoa ce,mane-->"transition id-->( payment_intent)", atao add korlam:
+          transactionId: session.payment_intent,
+          //status:
+          status: "completed",
+          //date add kora holo:
+          paymentDate: new Date(),
+          sessionId,
+
+          //tracking id oo data ar moddhe add kore dilam:
+          // trackingId: trackingId,
+        };
+
+        //jodi taka pay hoa thake,tahole ai line a asbe,akhn amra akti new "data-collection" make kore data ai "payment" korar data gulu add kore dibo
+        if (session.payment_status === "paid") {
+         
+          try {
+            // const resultPayment = await paymentCollection.insertOne(payment);
+            const updatePayment = await paymentCollection.updateOne( { hrEmail, packageName },
+    { $set: {...paymentUpdate} });
+
+         
+
+            return res.send({
+              success: true,
+              modifyUserCollection: updateHrInfo,
+              // trackingId: trackingId,  //drkr hole use kora hobe
+              transactionId: session.payment_intent,
+              paymentInfo: updatePayment,
+            });
+          } catch (err) {
+            //11000 = duplicate transactionId (MongoDB auto-block)
+            if (err.code === 11000) {
+              // old payment record-ar tracking ber kore dibe
+              const oldPayment = await paymentCollection.findOne({
+                transactionId,
+              });
+
+              return res.send({
+                success: true,
+                message: "Payment already stored before",
+                trackingId: oldPayment?.trackingId,
+                transactionId,
+              });
+            }
+
+            return res.status(500).send({ success: false, error: err });
+          }
+        }
+
+
+        }
+
+  })
+
+
+  //akhn payment failed hole...ai api te hit korbe...client(PaymentCancelled.jsx) theke:
+  app.patch("/payment-failed", async (req, res) => {
+  try {
+    const sessionId = req.query.session_id;
+
+    if (!sessionId) {
+      return res.status(400).send({ success: false, message: "Session ID missing" });
+    }
+
+    // Stripe session retrieve
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    // already completed hole failed kora jabe na
+    if (session.payment_status === "paid") {
+      return res.send({
+        success: false,
+        message: "Payment already completed",
+      });
+    }
+
+
+    //paymentCollection aa data match korar jonno ai 2ta field use korbo:
+    const hrEmail = session.metadata.hrEmail;
+    const packageName = session.metadata.packageName;
+
+    // paymentCollection update → failed
+    const updateResult = await paymentCollection.updateOne(
+      { hrEmail, packageName },
+      {
+        $set: {
+          status: "failed",
+          // paymentDate: new Date(),
+        },
+      }
+    );
+
+    return res.send({
+      success: true,
+      message: "Payment marked as failed",
+      updateResult,
+    });
+
+  } catch (error) {
+    console.error("Payment failed update error:", error);
+    res.status(500).send({ success: false, error });
+  }
+});
+
+    //-----------(hr upgrade package page)--------(end)
 
     //*****************hr dashboard******************(end) */
 
