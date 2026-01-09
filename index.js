@@ -1108,7 +1108,7 @@ async function run() {
 
 
   //---payment process: step:2.1(next step:3 client-side->hrPackageUpgrade) [akhn payment ar checkOut session make korbo] "post"
-  app.post("/payment-checkout-session",verifyToken, async(req,res)=>{
+  app.post("/payment-checkout-session",verifyToken,verifyHr, async(req,res)=>{
     try{
       const hrEmaill = req.user.email;
     //1:client side theke data nibo:
@@ -1219,7 +1219,7 @@ async function run() {
   
 
   //---payment process: step:2.2(/payment-success)  (client side ar "PaymentSuccess.jsx" page theke "session_id" receive kore-->"patch(`/payment-success?session_id=${sessionId}`)" ar moddhe me--> server-side aa send kora hoice, mane payment complete hoi ce)
-  app.patch("/payment-success",async(req,res)=>{
+  app.patch("/payment-success",verifyToken,verifyHr,async(req,res)=>{
     //client side theke "session id" server aa send kora hoice-->"session_id" name aa,setai receive korbo:
       //1:Stripe success page থেকে session_id query হিসাবে আসবে
       const sessionId = req.query.session_id;
@@ -1363,7 +1363,7 @@ async function run() {
 
 
   //akhn payment failed hole...ai api te hit korbe...client(PaymentCancelled.jsx) theke:
-  app.patch("/payment-failed", async (req, res) => {
+  app.patch("/payment-failed",verifyToken,verifyHr, async (req, res) => {
   try {
     const sessionId = req.query.session_id;
 
@@ -1770,98 +1770,94 @@ async function run() {
     //*************(employee  dashboard)**************(end)* */
 
     //Asset list ar data paoar  jonno-------(start)
-    //  app.get("/assets",verifyToken,async(req,res)=>{
-    //   //client side theke email pabo:
-    //   const {email} = req.query;
-
-    //    //search input ar moddhe je text write korbo,seta akhane asbe:
-    //       const searchText = req.query.searchText;
-
-    //       //--------------------------
-    //   //verify:
-    //   //  JWT token ar email
-    //   const tokenEmail = req.user.email;
-
-    //   //  Client side ar email
-    //   const clientEmail = email;
-
-    //   // Match check
-    //   if (tokenEmail !== clientEmail) {
-    //     return res.status(403).send({ message: "Forbidden access" });
-    //   }
-    //   //-----------------------------
-
-    //   //query:
-    //   let query = {};
-
-    //   //ai email ar user userCollection aa ace kina check korbo:
-    //   const user = await userCollection.findOne({email});
-    //   if(!user){
-    //     return res.status(404).send({message:"User not found"});
-    //   }
-
-    //     //------------------------------------------(search text)
-    //   //searchtext thakle query set korbo:
-    //    if (searchText) {
-    //         // partial vabe set korbo,jeno full text write korar agei value match kore fele:ai code "(mongodb.docs-->(https://www.mongodb.com/docs/manual/reference/operator/query/regex/))" ar moddhe pabo
-
-    //         //$or--->ata use kore amra onk gulu key(email,displayName) dea data search korte parbo
-    //         query.$or = [
-    //           { companyName: { $regex: searchText, $options: "i" } },
-    //           { productName: { $regex: searchText, $options: "i" } },
-    //         ];
-    //       }
-    // //---------------------------------------(search text)
-
-    //   //abr check korbo tar "role" "hr" kina:
-    //   if(user.role === "hr"){
-    //     //jodi "hr" hoi tahole shei "hr" ar sob asset dekhte parbe:
-    //     //userCollection ar moddhe onk company ar "hr" thakte pare, tai shei "hr" ar email ar asset gulu dekhabe:
-    //     query.hrEmail = email;
-    //     const options = { sort: { dateAdded: -1 } };
-    //     const result = await assetCollection.find(query, options).limit(10).toArray();
-    //     return  res.send(result);
-    //   }
-
-    //  })
+  
 
     //new vabe:
-    app.get("/assets", verifyToken, verifyHr, async (req, res) => {
-      const { email, searchText } = req.query;
+    // app.get("/assets", verifyToken, verifyHr, async (req, res) => {
+    //   const { email, searchText } = req.query;
 
-      const tokenEmail = req.user.email;
-      if (tokenEmail !== email) {
-        return res.status(403).send({ message: "Forbidden access" });
-      }
+    //   const tokenEmail = req.user.email;
+    //   if (tokenEmail !== email) {
+    //     return res.status(403).send({ message: "Forbidden access" });
+    //   }
 
-      const user = await userCollection.findOne({ email });
-      if (!user) {
-        return res.status(404).send({ message: "User not found" });
-      }
+    //   const user = await userCollection.findOne({ email });
+    //   if (!user) {
+    //     return res.status(404).send({ message: "User not found" });
+    //   }
 
-      let query = {};
+    //   let query = {};
 
-      if (searchText) {
-        query.$or = [
-          { companyName: { $regex: searchText, $options: "i" } },
-          { productName: { $regex: searchText, $options: "i" } },
-        ];
-      }
+    //   if (searchText) {
+    //     query.$or = [
+    //       { companyName: { $regex: searchText, $options: "i" } },
+    //       { productName: { $regex: searchText, $options: "i" } },
+    //     ];
+    //   }
 
-      if (user.role === "hr") {
-        query.hrEmail = email;
+    //   if (user.role === "hr") {
+    //     query.hrEmail = email;
 
-        const result = await assetCollection
-          .find(query)
-          .sort({ dateAdded: -1 })
-          .limit(10)
-          .toArray();
+    //     const result = await assetCollection
+    //       .find(query)
+    //       .sort({ dateAdded: -1 })
+    //       .limit(10)
+    //       .toArray();
 
-        return res.send(result);
-      }
+    //     return res.send(result);
+    //   }
 
-      return res.status(403).send({ message: "Access denied" });
+    //   return res.status(403).send({ message: "Access denied" });
+    // });
+
+    //akhn pagination ar code add kore final kora holo:
+    // Asset list with SERVER-SIDE PAGINATION
+app.get("/assets", verifyToken, verifyHr, async (req, res) => {
+  const { email, searchText, page = 1, limit = 10 } = req.query;
+
+  const tokenEmail = req.user.email;
+  if (tokenEmail !== email) {
+    return res.status(403).send({ message: "Forbidden access" });
+  }
+
+  const user = await userCollection.findOne({ email });
+  if (!user) {
+    return res.status(404).send({ message: "User not found" });
+  }
+
+  let query = {};
+
+  if (searchText) {
+    query.$or = [
+      { companyName: { $regex: searchText, $options: "i" } },
+      { productName: { $regex: searchText, $options: "i" } },
+    ];
+  }
+
+  if (user.role === "hr") {
+    query.hrEmail = email;
+
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const assets = await assetCollection
+      .find(query)
+      .sort({ dateAdded: -1 })
+      .skip(skip)
+      .limit(Number(limit))
+      .toArray();
+
+    const total = await assetCollection.countDocuments(query);
+
+    return res.send({
+      assets,
+      total,
+      page: Number(page),
+      totalPages: Math.ceil(total / limit),
     });
+  }
+
+  return res.status(403).send({ message: "Access denied" });
+});
 
     //Asset list ar data paoar  jonno-------(end)
 
