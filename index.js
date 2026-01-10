@@ -908,6 +908,7 @@ async function run() {
 
     //akhn affiliations-employee der direct assign korar jonno get kora hocce-----(start)
     app.get(
+
       "/affiliations-employee",
       verifyToken,
       verifyHr,
@@ -916,6 +917,7 @@ async function run() {
 
         //hr email from jwt token:
         const hrEmail = req.user.email;
+
 
         const employee = await employeeAffiliationsCollection
           .find({ hrEmail: hrEmail, status: "active" })
@@ -978,6 +980,7 @@ async function run() {
     //"employee"  ar data "userCollection" aa post-----(end)
 
     //hr asset edit korbe ar code---------(start)
+
     app.patch("/data/:id", verifyToken, verifyHr, async (req, res) => {
       const id = req.params.id;
       const updatedData = req.body;
@@ -1001,6 +1004,7 @@ async function run() {
     //hr asset edit korbe ar code---------(end)
 
     //hr asset delete korbe tar code---------(start)
+
     app.delete("/asset/:id", verifyToken, verifyHr, async (req, res) => {
       const { id } = req.params;
       const query = { _id: new ObjectId(id) };
@@ -1032,6 +1036,7 @@ async function run() {
     });
 
     //*****************hr dashboard******************(start) */
+    
     //----------------(hr profile)---------(start)
     //1: akhn hr info and affiliated info nibo:
     // HR profile get
