@@ -1036,8 +1036,9 @@ async function run() {
     });
 
     //*****************hr dashboard******************(start) */
-    
+
     //----------------(hr profile)---------(start)
+
     //1: akhn hr info and affiliated info nibo:
     // HR profile get
     app.get("/hr/profile", verifyToken, verifyHr, async (req, res) => {
@@ -1070,6 +1071,7 @@ async function run() {
     });
 
     //2:akhn hr ar data update korbo:
+
     // HR profile update
     app.patch("/update/hrProfile", verifyToken, verifyHr, async (req, res) => {
       try {
@@ -1097,6 +1099,7 @@ async function run() {
 
 
     //-----------(hr upgrade package page)--------(start)
+
     //1:--------akhn package load korbo:
      app.get("/packages/forHr",verifyToken,verifyHr,async(req,res)=>{
       const result = await packagesCollection.find({}).toArray();
@@ -1105,6 +1108,7 @@ async function run() {
 
 
     //2: akhn upgrade button ke conditional korar jonno "userCollection" theke hr ar data get:
+    
     app.get("/users/hr", verifyToken, verifyHr, async (req, res) => {
   const email = req.user.email;
   const hr = await userCollection.findOne({ email });
