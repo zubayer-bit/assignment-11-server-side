@@ -1412,6 +1412,84 @@ async function run() {
 
     //-----------(hr upgrade package page)--------(end)
 
+
+    //----------chart show-------(start)
+    //------------1:
+    app.get("/asset-type-summary", verifyToken,verifyHr, async (req, res) => {
+  try {
+    const email = req.user.email;
+
+    const result = await assetCollection.aggregate([
+      { $match: { hrEmail: email } },
+
+      {
+        $group: {
+          _id: "$productType",
+          count: { $sum: 1 },
+        },
+      },
+
+      {
+        $project: {
+          _id: 0,
+          name: {
+            $cond: [
+              { $eq: ["$_id", "Returnable"] },
+              "Returnable",
+              "Non-returnable",
+            ],
+          },
+          value: "$count",
+        },
+      },
+    ]).toArray();
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ error: true });
+  }
+});
+
+
+
+//----------------------2:
+app.get("/top-requested-assets", verifyToken,verifyHr, async (req, res) => {
+  try {
+    const email = req.user.email;
+
+    const result = await requestsCollection.aggregate([
+      { $match: { hrEmail: email } },
+
+      {
+        $group: {
+          _id: "$assetName",
+          count: { $sum: 1 },
+        },
+      },
+
+      { $sort: { count: -1 } },
+
+      { $limit: 5 },
+
+      {
+        $project: {
+          _id: 0,
+          name: "$_id",
+          count: 1,
+        },
+      },
+    ]).toArray();
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ error: true });
+  }
+});
+
+
+
+    //----------chart show-------(end)
+
     //*****************hr dashboard******************(end) */
 
     //edit asset ar jonno data get---------(end)
